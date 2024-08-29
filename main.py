@@ -1,185 +1,129 @@
-import spacy
 import random
-from locations import LocationManager
+import os
+import openai
+from faker import Faker
+from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv()
 
-class LifeSimulation:
+# Set OpenAI API key from environment variable
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+class AIEnhancedLifeSimulation:
     def __init__(self):
-        self.name = "Player"
-        self.location_manager = LocationManager()
-        self.location = self.location_manager.get_random_location_name()
-        self.age = 18
-        self.job = None
-        self.money = 1000
-        self.health = 100
-        self.happiness = 70
-        self.education = "High School"
-        self.relationships = {}
-        self.skills = {"communication": 5, "technology": 5, "fitness": 5}
-        self.nlp = spacy.load("en_core_web_sm")
-        self.action_handlers = {
-            "move": self.handle_movement,
-            "go": self.handle_movement,
-            "walk": self.handle_movement,
-            "work": self.handle_work,
-            "apply": self.handle_job_application,
-            "get": self.handle_job_application,
-            "learn": self.handle_learning,
-            "study": self.handle_learning,
-            "interact": self.handle_interaction,
-            "talk": self.handle_interaction,
-            "kiss": self.handle_romantic_action,
-            "hug": self.handle_romantic_action,
-            "jump": self.handle_physical_action,
-            "run": self.handle_physical_action,
+        self.faker = Faker()
+        self.name = self.faker.name()
+        self.location = self.faker.city()
+        self.age = random.randint(18, 80)
+        self.traits = {
+            "openness": random.uniform(0, 1),
+            "conscientiousness": random.uniform(0, 1),
+            "extraversion": random.uniform(0, 1),
+            "agreeableness": random.uniform(0, 1),
+            "neuroticism": random.uniform(0, 1)
         }
-
-
+        self.skills = {skill: random.randint(1, 100) for skill in ["creativity", "logic", "charisma", "fitness", "knowledge"]}
+        self.inventory = []
+        self.relationships = {}
+        self.experiences = []
+        self.conversation_history = []
 
     def process_input(self, user_input):
-        doc = self.nlp(user_input.lower())
-        
-        if user_input.lower() == "status":
-            return self.get_status()
-        elif user_input.lower() == "help":
-            return self.get_help()
+        self.conversation_history.append(f"Human: {user_input}")
+        response = self.generate_ai_response(user_input)
+        self.conversation_history.append(f"AI: {response}")
+        self.update_state(user_input, response)
+        return response
 
-        main_verb = None
-        objects = []
-        for token in doc:
-            if token.pos_ == "VERB" and not main_verb:
-                main_verb = token.lemma_
-            if token.dep_ in ["dobj", "pobj", "attr", "compound"]:
-                objects.append(token.text)
+    def generate_ai_response(self, user_input):
+        prompt = self.prepare_prompt(user_input)
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are an AI assistant in a life simulation game. Respond to the player's actions and queries in the context of the game."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=150,
+                n=1,
+                stop=None,
+                temperature=0.7,
+            )
+            return response.choices[0].message['content'].strip()
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return "I'm sorry, I'm having trouble processing that right now. Can you try again?"
 
-        if main_verb in self.action_handlers:
-            return self.action_handlers[main_verb](objects)
-        else:
-            return self.handle_unknown_action(main_verb, objects)
+    def prepare_prompt(self, user_input):
+        prompt = f"You are an AI assistant in a life simulation game. The player's name is {self.name}, age {self.age}, currently in {self.location}.\n"
+        prompt += f"Player traits: {', '.join([f'{k}: {v:.2f}' for k, v in self.traits.items()])}\n"
+        prompt += f"Player skills: {', '.join([f'{k}: {v}' for k, v in self.skills.items()])}\n"
+        prompt += f"Recent experiences: {', '.join(self.experiences[-3:])}\n\n"
+        prompt += "Recent conversation:\n"
+        prompt += "\n".join(self.conversation_history[-5:])
+        prompt += f"\nHuman: {user_input}\nAI: "
+        return prompt
 
-    def handle_movement(self, objects):
-        if objects:
-            destination = " ".join(objects)
-            return self.location_manager.move_to(self, destination)
-        return "You wander around aimlessly."
-
-    def handle_work(self, objects):
-        if self.job:
-            self.money += 100
-            self.skills["work"] = min(100, self.skills.get("work", 0) + 1)
-            return f"You work at your job as a {self.job}. You earn $100 and improve your work skills."
-        return "You don't have a job. Maybe you should apply for one?"
-
-    def handle_job_application(self, objects):
-        if "job" in objects:
-            objects.remove("job")
-        if objects:
-            job = " ".join(objects)
-            chance = random.random()
-            if chance > 0.7:
-                self.job = job
-                return f"Congratulations! You've been hired as a {job}."
+    def update_state(self, user_input, ai_response):
+        self.age += random.randint(0, 1) / 365.0
+        for trait in self.traits:
+            self.traits[trait] = max(0, min(1, self.traits[trait] + random.gauss(0, 0.01)))
+        for skill in self.skills:
+            if random.random() < 0.1:
+                self.skills[skill] = max(1, min(100, self.skills[skill] + random.randint(-1, 2)))
+        if random.random() < 0.05:
+            if self.inventory and random.random() < 0.5:
+                self.inventory.pop(random.randint(0, len(self.inventory) - 1))
             else:
-                return f"Unfortunately, your application for {job} was not successful this time."
-        return "What kind of job would you like to apply for?"
-
-    def handle_learning(self, objects):
-        if objects:
-            skill = " ".join(objects)
-            self.skills[skill] = min(100, self.skills.get(skill, 0) + 5)
-            return f"You spend some time learning about {skill}. Your skill has improved!"
-        return "What would you like to learn?"
-
-    def handle_interaction(self, objects):
-        if objects:
-            person = " ".join(objects)
-            self.relationships[person] = min(100, self.relationships.get(person, 0) + 5)
-            return f"You interact with {person}. Your relationship has improved!"
-        return "Who would you like to interact with?"
-
-    def handle_romantic_action(self, objects):
-        if objects:
-            person = " ".join(objects)
-            if person in self.relationships and self.relationships[person] > 50:
-                self.relationships[person] = min(100, self.relationships[person] + 10)
-                return f"You share a romantic moment with {person}. Your relationship has significantly improved!"
-            else:
-                return f"You try to get romantic with {person}, but they don't seem interested. Maybe you need to build a better relationship first."
-        return "Who would you like to be romantic with?"
-
-    def handle_physical_action(self, objects):
-        action = "do physical activity"
-        if objects:
-            action = " ".join(objects)
-        self.health = min(100, self.health + 5)
-        self.happiness = min(100, self.happiness + 5)
-        return f"You {action}. You feel healthier and happier!"
-
-    def handle_unknown_action(self, verb, objects):
-        if verb:
-            return f"You try to {verb} {' '.join(objects)}. It's an interesting experience, but you're not sure what effect it had."
-        return "I'm not sure what you're trying to do. Can you be more specific?"
+                self.inventory.append(self.faker.word())
+        self.experiences.append(user_input)
 
     def get_status(self):
-        location_info = self.location_manager.get_or_create_location(self.location)
         status = f"""
 Current Status:
 Name: {self.name}
-Age: {self.age}
-Location: {self.location}, {location_info.country}
-Job: {self.job if self.job else 'Unemployed'}
-Money: ${self.money}
-Health: {self.health}%
-Happiness: {self.happiness}%
-Education: {self.education}
+Age: {self.age:.2f}
+Location: {self.location}
+
+Traits:
+{chr(10).join([f"- {trait.capitalize()}: {value:.2f}" for trait, value in self.traits.items()])}
 
 Skills:
-{self.format_skills()}
+{chr(10).join([f"- {skill.capitalize()}: {level}" for skill, level in self.skills.items()])}
+
+Inventory:
+{chr(10).join([f"- {item}" for item in self.inventory]) if self.inventory else "Empty"}
 
 Relationships:
-{self.format_relationships()}
+{chr(10).join([f"- {person}: {level}" for person, level in self.relationships.items()]) if self.relationships else "No significant relationships"}
 
-Current Location: {self.location}
-Location Description: {location_info.description}
-Available Jobs: {', '.join(location_info.available_jobs)}
+Recent Experiences:
+{chr(10).join(self.experiences[-5:]) if self.experiences else "No recent experiences"}
 """
         return status
 
-    def format_skills(self):
-        return "\n".join([f"- {skill.capitalize()}: {level}" for skill, level in self.skills.items()])
-
-    def format_relationships(self):
-        if not self.relationships:
-            return "No significant relationships"
-        return "\n".join([f"- {person}: {status}" for person, status in self.relationships.items()])
-
-    def get_help(self):
-        return """
-Available commands:
-- status: Check your current life status
-- move [location]: Move to a new location
-- work: Go to work (if employed)
-- apply [job]: Apply for a job
-- learn [skill]: Learn or improve a skill
-- interact [person]: Interact with someone
-- help: Show this help message
-You can also try other actions, and the game will respond accordingly!
-"""
-
 def main():
-    game = LifeSimulation()
-    start_location = game.location_manager.get_or_create_location(game.location)
-    print(f"Welcome to Life Simulation!")
-    print(f"You wake up one day in {game.location}, {start_location.country}. {start_location.description}")
-    print("What would you like to do? Type 'help' for some ideas.")
+    if not openai.api_key:
+        print("Error: OpenAI API key not found. Please set the OPENAI_API_KEY environment variable.")
+        return
+
+    game = AIEnhancedLifeSimulation()
+    print("Welcome to the AI-Enhanced Life Simulation!")
+    print("You can do or say anything you want. The AI will respond and the world will react.")
+    print("Type 'status' to see your current state, or 'quit' to end the game.")
+    print(f"\nYou find yourself in {game.location}. What would you like to do or say?")
 
     while True:
         user_input = input("> ")
         if user_input.lower() == "quit":
             print("Thanks for playing!")
             break
-        result = game.process_input(user_input)
-        print(result)
+        elif user_input.lower() == "status":
+            print(game.get_status())
+        else:
+            result = game.process_input(user_input)
+            print(result)
 
 if __name__ == "__main__":
     main()
