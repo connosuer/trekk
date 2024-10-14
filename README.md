@@ -19,12 +19,12 @@ This project is an AI-driven life simulation game that aims to provide a rich, o
 
 1. Clone this repository:
    ```
-   git clone https://github.com/yourusername/life-simulation-game.git
+   git clone https://github.com/connosuer/trekk.git
    ```
 
 2. Navigate to the project directory:
    ```
-   cd life-simulation-game
+   cd trekk
    ```
 
 3. Create a virtual environment and activate it:
