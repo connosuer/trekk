@@ -3,6 +3,8 @@ import os
 import openai
 from faker import Faker
 from dotenv import load_dotenv
+from world_generator import WorldGenerator
+from event_generator import EventGenerator
 
 # Load environment variables
 load_dotenv()
@@ -14,8 +16,11 @@ class AIEnhancedLifeSimulation:
     def __init__(self):
         self.faker = Faker()
         self.name = self.faker.name()
-        self.location = self.faker.city()
+        self.world = WorldGenerator()
+        self.current_location = self.world.get_or_create_location()
         self.age = random.randint(18, 80)
+        self.health = 100
+        self.money = 1000
         self.traits = {
             "openness": random.uniform(0, 1),
             "conscientiousness": random.uniform(0, 1),
@@ -56,9 +61,11 @@ class AIEnhancedLifeSimulation:
             return "I'm sorry, I'm having trouble processing that right now. Can you try again?"
 
     def prepare_prompt(self, user_input):
-        prompt = f"You are an AI assistant in a life simulation game. The player's name is {self.name}, age {self.age}, currently in {self.location}.\n"
+        prompt = f"You are an AI assistant in a life simulation game. The player's name is {self.name}, age {self.age}, currently in {self.current_location.name}, {self.current_location.country}.\n"
         prompt += f"Player traits: {', '.join([f'{k}: {v:.2f}' for k, v in self.traits.items()])}\n"
         prompt += f"Player skills: {', '.join([f'{k}: {v}' for k, v in self.skills.items()])}\n"
+        prompt += f"Health: {self.health}, Money: ${self.money}\n"
+        prompt += f"Current location description: {self.current_location.description}\n"
         prompt += f"Recent experiences: {', '.join(self.experiences[-3:])}\n\n"
         prompt += "Recent conversation:\n"
         prompt += "\n".join(self.conversation_history[-5:])
@@ -67,6 +74,9 @@ class AIEnhancedLifeSimulation:
 
     def update_state(self, user_input, ai_response):
         self.age += random.randint(0, 1) / 365.0
+        self.health = max(0, min(100, self.health + random.randint(-1, 1)))
+        self.money += random.randint(-50, 100)
+
         for trait in self.traits:
             self.traits[trait] = max(0, min(1, self.traits[trait] + random.gauss(0, 0.01)))
         for skill in self.skills:
@@ -79,12 +89,28 @@ class AIEnhancedLifeSimulation:
                 self.inventory.append(self.faker.word())
         self.experiences.append(user_input)
 
+        # Generate a random event
+        if random.random() < 0.2:
+            event = EventGenerator.generate_event(self)
+            print(f"\nEvent: {event}")
+
+        # Chance to travel to a new location
+        if random.random() < 0.1:
+            new_location = self.world.find_nearest_location(self.current_location.name)
+            if new_location:
+                travel_event = self.world.generate_travel_event(self.current_location.name, new_location)
+                print(f"\n{travel_event}")
+                self.current_location = self.world.get_or_create_location(new_location)
+
     def get_status(self):
         status = f"""
 Current Status:
 Name: {self.name}
 Age: {self.age:.2f}
-Location: {self.location}
+Health: {self.health}
+Money: ${self.money}
+Location: {self.current_location.name}, {self.current_location.country}
+Location Description: {self.current_location.description}
 
 Traits:
 {chr(10).join([f"- {trait.capitalize()}: {value:.2f}" for trait, value in self.traits.items()])}
@@ -112,7 +138,8 @@ def main():
     print("Welcome to the AI-Enhanced Life Simulation!")
     print("You can do or say anything you want. The AI will respond and the world will react.")
     print("Type 'status' to see your current state, or 'quit' to end the game.")
-    print(f"\nYou find yourself in {game.location}. What would you like to do or say?")
+    print(f"\nYou find yourself in {game.current_location.name}, {game.current_location.country}. {game.current_location.description}")
+    print("What would you like to do or say?")
 
     while True:
         user_input = input("> ")
